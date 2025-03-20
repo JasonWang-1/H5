@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>天降红包小游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom right, #B2010A, #E83A95);
+            /* 禁止长按选择文本 */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .red-envelope {
+            position: absolute;
+            width: 80px;
+            height: 100px;
+            background-image: url('https://i.imgur.com/KWXs9i6.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            will-change: transform; /* 提示浏览器该元素即将发生变化，优化性能 */
+            animation: fall 5s linear; /* 简单动画示例，可根据实际调整 */
+        }
+
+        @keyframes fall {
+            from {
+                transform: translateY(-100px);
+            }
+            to {
+                transform: translateY(calc(100vh + 100px));
+            }
+        }
+
+        #player {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 150px;
+            background-image: url('https://i.imgur.com/unWE9ek.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            border: 2px solid transparent; /* 预留边框，可用于特效 */
+            transition: border-color 0.3s ease; /* 边框颜色过渡效果 */
+        }
+
+        #player.catch {
+            border-color: yellow; /* 接住红包时的特效 */
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+
+        #timer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px 20px;
+            font-size: 24px;
+            background-color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* 按钮阴影效果 */
+            transition: transform 0.2s ease; /* 按钮点击动画 */
+        }
+
+        #start-button:hover {
+            transform: translate(-50%, -50%) scale(1.05); /* 鼠标悬停时放大按钮 */
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0% {
+                opacity: 0.2;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0.2;
+            }
+        }
+
+        .meteor {
+            position: absolute;
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(to right, white, transparent);
+            transform-origin: left center;
+            animation: meteorFall 3s linear infinite;
+        }
+
+        @keyframes meteorFall {
+            0% {
+                transform: rotate(-45deg) translateX(0);
+                opacity: 1;
+            }
+            100% {
+                transform: rotate(-45deg) translateX(-100vh);
+                opacity: 0;
+            }
+        }
+
+        .catch-effect {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
+            animation: catchEffect 0.5s ease-out;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        @keyframes catchEffect {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="player"></div>
+        <div id="score">得分: 0</div>
+        <div id="timer">倒计时: 60</div>
+        <button id="start-button">开始游戏</button>
+    </div>
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const player = document.getElementById('player');
+        const scoreElement = document.getElementById('score');
+        const timerElement = document.getElementById('timer');
+        const startButton = document.getElementById('start-button');
+        let score = 0;
+        let timeLeft = 60;
+        let gameInterval;
+        let timerInterval;
+        const redEnvelopes = [];
+        const meteors = [];
+
+        // 生成小星星
+        function createStars() {
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.classList.add('star');
+                star.style.left = Math.random() * gameContainer.offsetWidth + 'px';
+                star.style.top = Math.random() * gameContainer.offsetHeight + 'px';
+                star.style.animationDelay = Math.random() * 3 + 's';
+                gameContainer.appendChild(star);
+            }
+        }
+
+        // 移动玩家
+        function handlePlayerMove(event) {
+            event.preventDefault(); // 阻止默认触摸行为
+            let x;
+            if (event.type === 'mousemove') {
+                x = event.clientX - player.offsetWidth / 2;
+            } else if (event.type === 'touchmove') {
+                x = event.touches[0].clientX - player.offsetWidth / 2;
+            }
+            player.style.left = x + 'px';
+        }
+
+        document.addEventListener('mousemove', handlePlayerMove);
+        document.addEventListener('touchmove', handlePlayerMove);
+
+        // 生成红包
+        function createRedEnvelope() {
+            const redEnvelope = document.createElement('div');
+            redEnvelope.classList.add('red-envelope');
+            redEnvelope.style.left = Math.random() * (gameContainer.offsetWidth - 80) + 'px';
+            redEnvelope.speed = 5;
+            redEnvelope.acceleration = 0.05;
+            gameContainer.appendChild(redEnvelope);
+            redEnvelopes.push(redEnvelope);
+        }
+
+        // 生成流星
+        function createMeteor() {
+            const meteor = document.createElement('div');
+            meteor.classList.add('meteor');
+            meteor.style.left = Math.random() * gameContainer.offsetWidth + 'px';
+            meteor.style.top = 0;
+            meteor.style.animationDelay = Math.random() * 5 + 's';
+            gameContainer.appendChild(meteor);
+            meteors.push(meteor);
+
+            // 流星动画结束后移除
+            meteor.addEventListener('animationend', () => {
+                gameContainer.removeChild(meteor);
+                const index = meteors.indexOf(meteor);
+                if (index > -1) {
+                    meteors.splice(index, 1);
+                }
+            });
+        }
+
+        // 移动红包（使用 requestAnimationFrame 优化）
+        function moveRedEnvelopes() {
+            for (let i = redEnvelopes.length - 1; i >= 0; i--) {
+                const redEnvelope = redEnvelopes[i];
+                const top = parseInt(redEnvelope.style.top) || 0;
+                redEnvelope.speed += redEnvelope.acceleration;
+                redEnvelope.style.transform = `translateY(${top + redEnvelope.speed}px)`;
+
+                // 检查是否被接住
+                if (isCaught(redEnvelope)) {
+                    showCatchEffect(redEnvelope);
+                    gameContainer.removeChild(redEnvelope);
+                    redEnvelopes.splice(i, 1);
+                    score++;
+                    scoreElement.textContent = '得分: ' + score;
+                    player.classList.add('catch');
+                    setTimeout(() => {
+                        player.classList.remove('catch');
+                    }, 300);
+                } else if (top > gameContainer.offsetHeight) {
+                    gameContainer.removeChild(redEnvelope);
+                    redEnvelopes.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(moveRedEnvelopes);
+        }
+
+        // 显示接到红包的光效
+        function showCatchEffect(redEnvelope) {
+            const catchEffect = document.createElement('div');
+            catchEffect.classList.add('catch-effect');
+            const redEnvelopeRect = redEnvelope.getBoundingClientRect();
+            catchEffect.style.left = redEnvelopeRect.left - 50 + 'px';
+            catchEffect.style.top = redEnvelopeRect.top - 50 + 'px';
+            gameContainer.appendChild(catchEffect);
+            setTimeout(() => {
+                gameContainer.removeChild(catchEffect);
+            }, 500);
+        }
+
+        // 检查是否被接住
+        function isCaught(redEnvelope) {
+            const redEnvelopeRect = redEnvelope.getBoundingClientRect();
+            const playerRect = player.getBoundingClientRect();
+            return (
+                redEnvelopeRect.bottom >= playerRect.top &&
+                redEnvelopeRect.left <= playerRect.right &&
+                redEnvelopeRect.right >= playerRect.left
+            );
+        }
+
+        // 开始游戏
+        function startGame() {
+            startButton.style.display = 'none';
+            gameInterval = setInterval(createRedEnvelope, 1000);
+            setInterval(createMeteor, 3000);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = `倒计时: ${timeLeft}`;
+                if (timeLeft <= 0) {
+                    clearInterval(gameInterval);
+                    clearInterval(timerInterval);
+                    alert(`游戏结束！你的得分是: ${score}`);
+                }
+            }, 1000);
+            requestAnimationFrame(moveRedEnvelopes);
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        // 生成小星星
+        createStars();
+    </script>
+</body>
+
+</html>    
